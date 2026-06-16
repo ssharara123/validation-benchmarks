@@ -46,16 +46,22 @@ async def jobs(request: Request):
         conn.close()
         return HTMLResponse(content=json.dumps({"detail": "Only admins can see private jobs"}), status_code=403)
 
-    for denied_word in ['OR', 'or', 'AND', 'and', 'SELECT', 'select', 'UNION', 'union', 'FROM', 'from', 'WHERE', 'where']:
-        job_type = job_type.replace(denied_word, '')
+    # VULNERABILITY FIX: Removed ineffective keyword blacklist sanitization
+    # The blacklist approach was bypassable using nested keywords (e.g., 'UNIUNIONON' becomes 'UNION')
+    # or characters not in the blacklist (single quotes, comments)
+    # Using parameterized queries instead to properly prevent SQL injection
 
     print(job_type)
     if job_type:
-        query = f"SELECT * FROM jobs WHERE type = '{job_type}'"
+        # FIXED: Use parameterized query with placeholder instead of string formatting
+        # This prevents SQL injection by separating SQL logic from user data
+        # The database driver handles proper escaping of the job_type value
+        query = "SELECT * FROM jobs WHERE type = ?"
+        cursor.execute(query, (job_type,))
     else:
         query = "SELECT * FROM jobs WHERE type IN ('front-end', 'back-end')"
+        cursor.execute(query)
 
-    cursor.execute(query)
     jobs = cursor.fetchall()
     conn.close()
     return [{"id": job["id"], "name": job["name"], "type": job["type"],
